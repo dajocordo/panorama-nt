@@ -27,3 +27,79 @@ h1 {
     font-weight: 700;
     letter-spacing: -0.5px;
 }
+
+
+
+/* ALERT */
+
+/* Estilo base (Desktop) */
+.custom-toast {
+  position: fixed;
+  top: 20px;
+  right: -400px; /* Escondido */
+  width: 320px;
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  z-index: 10000;
+  border-left: 6px solid #ccc;
+}
+
+.custom-toast.show {
+  right: 20px;
+}
+
+/* Ajustes para Móviles (Pantallas menores a 600px) */
+@media screen and (max-width: 600px) {
+  .custom-toast {
+    top: auto;
+    bottom: -150px; /* Escondido abajo */
+    right: 5%;
+    left: 5%;
+    width: 90%;
+    margin: 0 auto;
+    transition: all 0.4s ease-out;
+  }
+
+  .custom-toast.show {
+    bottom: 30px; /* Sube desde abajo */
+    right: 5%;
+  }
+}
+
+/* Colores y Contenido */
+.custom-toast.success { border-left-color: #22c55e; }
+.custom-toast.error { border-left-color: #ef4444; }
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.toast-icon {
+  min-width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+}
+
+.success .toast-icon { background: #22c55e; }
+.error .toast-icon { background: #ef4444; }
+
+.toast-summary {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1a1a1a;
+}
+
+.toast-detail {
+  font-size: 0.9rem;
+  color: #666;
+}

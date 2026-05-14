@@ -2,20 +2,20 @@
   <h1><img src="/nt-icono-mini.png" alt="Nuevo Testamento" /> Nuevo Testamento</h1>
 
   <div class="search-container">
-    <input 
-      type="text" 
-      [(ngModel)]="buscarLibro" 
-      placeholder="Buscar libro o autor..." 
-      autocomplete="off" 
-    />
+    <input type="text" [(ngModel)]="buscarLibro" placeholder="Buscar libro o autor..." autocomplete="off" />
   </div>
 
   <div class="button-container">
     <button (click)="toggleExpandirTodo()" class="toggle-btn">
       {{ expandirTodo ? '✕ Contraer todo' : '+ Expandir todo' }}
     </button>
+
+    <button pButton class="toggle-btn" (click)="descargarTodosLosLibros()" [disabled]="libros.length === 0">
+      <img src="word.png" style="padding: 5px;" alt="Descargar" class="btn-custom-icon">
+      <span>Descargar documento (.docx)</span>
+    </button>
   </div>
-  
+
   <div class="libros-grid">
     <div class="libro-card" *ngFor="let libro of librosFiltrados">
       <div class="card-header">
@@ -29,31 +29,31 @@
           </button>
         </div>
       </div>
-      
+
       <details class="acordion" [open]="expandirTodo">
         <summary>Ver detalles</summary>
-        
+
         <div class="acordion-content">
           <div class="info-item">
             <strong>Fecha:</strong>
             <span>{{ libro.fecha }}</span>
           </div>
-          
+
           <div class="info-item">
             <strong>Destinatarios:</strong>
             <span>{{ libro.destinatarios }}</span>
           </div>
-          
+
           <div class="info-item">
             <strong>Propósito:</strong>
             <span>{{ libro.proposito }}</span>
           </div>
-          
+
           <div class="info-item">
             <strong>Tema:</strong>
             <span>{{ libro.tema }}</span>
           </div>
-          
+
           <div class="info-item">
             <strong>Bosquejo:</strong>
             <ul class="bosquejo-list">
@@ -62,6 +62,20 @@
           </div>
         </div>
       </details>
+    </div>
+  </div>
+</div>
+
+<!-- Notificación Personalizada -->
+<div class="custom-toast" [class.show]="mostrarAlert" [ngClass]="alertConfig.severity">
+  <div class="toast-content">
+    <div class="toast-icon">
+      @if (alertConfig.severity === 'success') { ✓ }
+      @else { ✕ }
+    </div>
+    <div class="toast-text">
+      <div class="toast-summary">{{ alertConfig.summary }}</div>
+      <div class="toast-detail">{{ alertConfig.detail }}</div>
     </div>
   </div>
 </div>

@@ -1,10 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
+import { ToastModule } from 'primeng/toast';
+
+// Importaciones para el documento
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak } from 'docx';
+import { saveAs } from 'file-saver';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, FormsModule],
+  standalone: true, // Importante en Angular 19
+  imports: [
+    CommonModule,
+    FormsModule,
+    ButtonModule,
+    ToastModule
+  ],
+  providers: [MessageService],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
@@ -12,22 +26,10 @@ export class AppComponent implements OnInit {
   title = 'panorama-nt';
   buscarLibro: string = '';
   expandirTodo: boolean = false;
-  libros : any = []
+  libros: any = []
+  mostrarAlert: boolean = false;
 
-  ngOnInit() {
-    this.llenarLibros();
-  }
-
-  get librosFiltrados() {
-    return this.libros.filter((libro: any) =>
-      libro.libro.toLowerCase().includes(this.buscarLibro.toLowerCase()) ||
-      libro.autor.toLowerCase().includes(this.buscarLibro.toLowerCase())
-    );
-  }
-
-  toggleExpandirTodo() {
-    this.expandirTodo = !this.expandirTodo;
-  }
+  alertConfig = { severity: '', summary: '', detail: '' };
 
   copiarInfo(libro: any) {
     const info = `${libro.libro}
@@ -41,21 +43,136 @@ Tema: ${libro.tema}
 Bosquejo:
 ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
 
-    navigator.clipboard.writeText(info).then(() => {
-      alert('✓ Información copiada al portapapeles');
-    }).catch(() => {
-      alert('Error al copiar');
+    // (Mantén tu lógica de construcción de 'info')
+
+    navigator.clipboard.writeText(info)
+      .then(() => {
+        this.lanzarNotificacion('success', '¡Copiado!', 'Información al portapapeles');
+      })
+      .catch(() => {
+        this.lanzarNotificacion('error', 'Error', 'No se pudo copiar');
+      });
+  }
+
+  lanzarNotificacion(severity: string, summary: string, detail: string) {
+    this.alertConfig = { severity, summary, detail };
+    this.mostrarAlert = true;
+
+    // En móviles 2.5 o 3 segundos es el tiempo perfecto
+    setTimeout(() => {
+      this.mostrarAlert = false;
+    }, 2500);
+  }
+  ngOnInit() {
+    this.llenarLibros();
+  }
+
+  descargarTodosLosLibros() {
+    const secciones: any[] = [];
+
+    // Iteramos sobre todos los libros que tienes en memoria
+    this.libros.forEach((libro: any, index: number) => {
+
+      // 1. Título del Libro
+      secciones.push(
+        new Paragraph({
+          text: libro.libro.toUpperCase(),
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { before: index === 0 ? 0 : 400, after: 400 },
+        })
+      );
+
+      // 2. Información General
+      const campos = [
+        { k: 'Autor', v: libro.autor },
+        { k: 'Fecha', v: libro.fecha },
+        { k: 'Destinatarios', v: libro.destinatarios },
+        { k: 'Propósito', v: libro.proposito },
+        { k: 'Tema', v: libro.tema }
+      ];
+
+      campos.forEach(campo => {
+        secciones.push(new Paragraph({
+          children: [
+            new TextRun({ text: `${campo.k}: `, bold: true }),
+            new TextRun({ text: campo.v || 'N/A' }),
+          ],
+          spacing: { after: 120 },
+        }));
+      });
+
+      // 3. Bosquejo
+      secciones.push(new Paragraph({
+        text: "Bosquejo",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 },
+      }));
+
+      libro.bosquejo.forEach((punto: string) => {
+        secciones.push(new Paragraph({
+          text: punto,
+          bullet: { level: 0 },
+        }));
+      });
+
+      // 4. Salto de página (excepto después del último libro)
+      if (index < this.libros.length - 1) {
+        secciones.push(new Paragraph({
+          children: [new PageBreak()],
+        }));
+      }
     });
+
+    // Crear el documento final
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: secciones,
+      }],
+    });
+
+    // Guardar archivo
+    Packer.toBlob(doc).then((blob) => {
+      saveAs(blob, `Panorama_Completo.docx`);
+      this.lanzarNotificacion('success', '¡Listo!', `Se exportaron ${this.libros.length} al portapapeles`);
+    });
+  }
+  // Helper para crear líneas "Etiqueta: Valor" con estilo
+  private crearLineaInfo(etiqueta: string, valor: string) {
+    return [
+      new Paragraph({
+        children: [
+          new TextRun({ text: `${etiqueta}: `, bold: true }),
+          new TextRun({ text: valor || 'N/A' }),
+        ],
+        spacing: { after: 120 },
+      })
+    ];
   }
 
 
-  llenarLibros(){
+
+  get librosFiltrados() {
+    return this.libros.filter((libro: any) =>
+      libro.libro.toLowerCase().includes(this.buscarLibro.toLowerCase()) ||
+      libro.autor.toLowerCase().includes(this.buscarLibro.toLowerCase())
+    );
+  }
+
+  toggleExpandirTodo() {
+    this.expandirTodo = !this.expandirTodo;
+  }
+
+
+
+  llenarLibros() {
     this.libros = [
-      { 
+      {
         libro: 'Evangelio según Mateo',
         autor: 'Mateo (Leví)',
         fecha: '60–65 d.C.',
-        destinatarios: 'Principalmente judíos',  
+        destinatarios: 'Principalmente judíos',
         proposito: 'Presentar a Jesús como el Mesías prometido y Rey de Israel',
         tema: 'Jesucristo, el Rey prometido',
         bosquejo: [
@@ -65,11 +182,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Muerte y resurrección del Rey (26–28)'
         ]
       },
-      { 
+      {
         libro: 'Evangelio según Marcos',
         autor: 'Juan Marcos',
         fecha: '55–65 d.C.',
-        destinatarios: 'Romanos y gentiles',  
+        destinatarios: 'Romanos y gentiles',
         proposito: 'Mostrar a Jesús como el Siervo poderoso de Dios',
         tema: 'Jesucristo, el Siervo obediente',
         bosquejo: [
@@ -78,11 +195,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Sacrificio del Siervo (11–16)'
         ]
       },
-      { 
+      {
         libro: 'Evangelio según Lucas',
         autor: 'Lucas, médico',
         fecha: '60–63 d.C.',
-        destinatarios: 'Teófilo y creyentes gentiles',  
+        destinatarios: 'Teófilo y creyentes gentiles',
         proposito: 'Presentar un relato ordenado y completo de la vida de Jesús',
         tema: 'Jesucristo, el Hijo del Hombre',
         bosquejo: [
@@ -92,11 +209,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Pasión y resurrección (20–24)'
         ]
       },
-      { 
+      {
         libro: 'Evangelio según Juan',
         autor: 'Juan, el apóstol',
         fecha: '85–95 d.C.',
-        destinatarios: 'Creyentes y no creyentes en general',  
+        destinatarios: 'Creyentes y no creyentes en general',
         proposito: 'Demostrar que Jesús es el Hijo de Dios y llevar a la fe',
         tema: 'Jesucristo, el Hijo de Dios',
         bosquejo: [
@@ -106,11 +223,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Muerte y resurrección (18–21)'
         ]
       },
-      { 
+      {
         libro: 'Hechos de los Apóstoles',
         autor: 'Lucas',
         fecha: '62–64 d.C.',
-        destinatarios: 'Teófilo y la iglesia',  
+        destinatarios: 'Teófilo y la iglesia',
         proposito: 'Relatar el crecimiento y expansión de la iglesia primitiva',
         tema: 'La obra del Espíritu Santo en la iglesia',
         bosquejo: [
@@ -119,11 +236,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Viajes misioneros de Pablo (13–28)'
         ]
       },
-      { 
+      {
         libro: 'Romanos',
         autor: 'Pablo',
         fecha: '57 d.C.',
-        destinatarios: 'Cristianos en Roma',  
+        destinatarios: 'Cristianos en Roma',
         proposito: 'Explicar claramente el evangelio y la justificación por la fe',
         tema: 'La justicia de Dios',
         bosquejo: [
@@ -134,11 +251,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Vida práctica cristiana (12–16)'
         ]
       },
-      { 
+      {
         libro: 'Primera de Corintios',
         autor: 'Pablo',
         fecha: '55 d.C.',
-        destinatarios: 'Iglesia en Corinto',  
+        destinatarios: 'Iglesia en Corinto',
         proposito: 'Corregir problemas doctrinales y morales',
         tema: 'Orden y santidad en la iglesia',
         bosquejo: [
@@ -149,11 +266,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Conclusión (16)'
         ]
       },
-      { 
+      {
         libro: 'Segunda de Corintios',
         autor: 'Pablo',
         fecha: '56 d.C.',
-        destinatarios: 'Iglesia en Corinto',  
+        destinatarios: 'Iglesia en Corinto',
         proposito: 'Defender su apostolado y fortalecer a la iglesia',
         tema: 'El ministerio cristiano',
         bosquejo: [
@@ -162,11 +279,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Defensa apostólica (10–13)'
         ]
       },
-      { 
+      {
         libro: 'Gálatas',
         autor: 'Pablo',
         fecha: '48–49 d.C.',
-        destinatarios: 'Iglesias de Galacia',  
+        destinatarios: 'Iglesias de Galacia',
         proposito: 'Defender la salvación por gracia mediante la fe',
         tema: 'Libertad en Cristo',
         bosquejo: [
@@ -175,11 +292,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Vida en el Espíritu (5–6)'
         ]
       },
-      { 
+      {
         libro: 'Efesios',
         autor: 'Pablo',
         fecha: '60–62 d.C.',
-        destinatarios: 'Iglesia en Éfeso',  
+        destinatarios: 'Iglesia en Éfeso',
         proposito: 'Enseñar la posición y unidad del creyente en Cristo',
         tema: 'La iglesia, cuerpo de Cristo',
         bosquejo: [
@@ -187,11 +304,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Vida práctica cristiana (4–6)'
         ]
       },
-      { 
+      {
         libro: 'Filipenses',
         autor: 'Pablo',
         fecha: '61–62 d.C.',
-        destinatarios: 'Iglesia en Filipos',  
+        destinatarios: 'Iglesia en Filipos',
         proposito: 'Agradecer el apoyo recibido y exhortar al gozo',
         tema: 'Gozo en Cristo',
         bosquejo: [
@@ -201,11 +318,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Gozo en toda circunstancia (4)'
         ]
       },
-      { 
+      {
         libro: 'Colosenses',
         autor: 'Pablo',
         fecha: '60–62 d.C.',
-        destinatarios: 'Iglesia en Colosas',  
+        destinatarios: 'Iglesia en Colosas',
         proposito: 'Exaltar la supremacía de Cristo',
         tema: 'La preeminencia de Cristo',
         bosquejo: [
@@ -213,11 +330,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Vida nueva en Cristo (3–4)'
         ]
       },
-      { 
+      {
         libro: 'Primera de Tesalonicenses',
         autor: 'Pablo',
         fecha: '50–51 d.C.',
-        destinatarios: 'Iglesia en Tesalónica',  
+        destinatarios: 'Iglesia en Tesalónica',
         proposito: 'Animar a creyentes perseguidos y enseñar sobre la segunda venida',
         tema: 'La esperanza del regreso de Cristo',
         bosquejo: [
@@ -225,11 +342,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Vida santa y esperanza futura (4–5)'
         ]
       },
-      { 
+      {
         libro: 'Segunda de Tesalonicenses',
         autor: 'Pablo',
         fecha: '51–52 d.C.',
-        destinatarios: 'Iglesia en Tesalónica',  
+        destinatarios: 'Iglesia en Tesalónica',
         proposito: 'Corregir errores sobre el día del Señor',
         tema: 'El día del Señor',
         bosquejo: [
@@ -238,11 +355,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Exhortaciones prácticas (3)'
         ]
       },
-      { 
+      {
         libro: 'Primera de Timoteo',
         autor: 'Pablo',
         fecha: '62–64 d.C.',
-        destinatarios: 'Timoteo',  
+        destinatarios: 'Timoteo',
         proposito: 'Instruir sobre organización y doctrina en la iglesia',
         tema: 'Orden en la iglesia',
         bosquejo: [
@@ -251,11 +368,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Consejos pastorales (4–6)'
         ]
       },
-      { 
+      {
         libro: 'Segunda de Timoteo',
         autor: 'Pablo',
         fecha: '66–67 d.C.',
-        destinatarios: 'Timoteo',  
+        destinatarios: 'Timoteo',
         proposito: 'Animar a permanecer fiel al ministerio',
         tema: 'Fidelidad en el servicio',
         bosquejo: [
@@ -264,11 +381,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Encargo final (4)'
         ]
       },
-      { 
+      {
         libro: 'Tito',
         autor: 'Pablo',
         fecha: '63–65 d.C.',
-        destinatarios: 'Tito',  
+        destinatarios: 'Tito',
         proposito: 'Organizar las iglesias en Creta',
         tema: 'Buenas obras y sana doctrina',
         bosquejo: [
@@ -277,11 +394,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Buenas obras (3)'
         ]
       },
-      { 
+      {
         libro: 'Filemón',
         autor: 'Pablo',
         fecha: '60–62 d.C.',
-        destinatarios: 'Filemón',  
+        destinatarios: 'Filemón',
         proposito: 'Interceder por Onésimo',
         tema: 'Perdón y reconciliación cristiana',
         bosquejo: [
@@ -290,11 +407,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Despedida (22–25)'
         ]
       },
-      { 
+      {
         libro: 'Hebreos',
         autor: 'Desconocido',
         fecha: '65–69 d.C.',
-        destinatarios: 'Cristianos judíos',  
+        destinatarios: 'Cristianos judíos',
         proposito: 'Mostrar la superioridad de Cristo',
         tema: 'Cristo, superior a todo',
         bosquejo: [
@@ -302,11 +419,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Vida de fe (11–13)'
         ]
       },
-      { 
+      {
         libro: 'Santiago',
         autor: 'Santiago, hermano del Señor',
         fecha: '44–49 d.C.',
-        destinatarios: 'Creyentes judíos dispersos',  
+        destinatarios: 'Creyentes judíos dispersos',
         proposito: 'Enseñar una fe práctica',
         tema: 'La fe demostrada por obras',
         bosquejo: [
@@ -316,11 +433,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Vida piadosa (4–5)'
         ]
       },
-      { 
+      {
         libro: 'Primera de Pedro',
         autor: 'Pedro',
         fecha: '62–64 d.C.',
-        destinatarios: 'Cristianos perseguidos',  
+        destinatarios: 'Cristianos perseguidos',
         proposito: 'Animar en medio del sufrimiento',
         tema: 'Esperanza en el sufrimiento',
         bosquejo: [
@@ -329,11 +446,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Exhortaciones finales (5)'
         ]
       },
-      { 
+      {
         libro: 'Segunda de Pedro',
         autor: 'Pedro',
         fecha: '64–67 d.C.',
-        destinatarios: 'Creyentes en general',  
+        destinatarios: 'Creyentes en general',
         proposito: 'Advertir contra falsos maestros',
         tema: 'Conocimiento verdadero y vigilancia',
         bosquejo: [
@@ -342,11 +459,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Día del Señor (3)'
         ]
       },
-      { 
+      {
         libro: 'Primera de Juan',
         autor: 'Juan',
         fecha: '85–95 d.C.',
-        destinatarios: 'Iglesias de Asia Menor',  
+        destinatarios: 'Iglesias de Asia Menor',
         proposito: 'Dar seguridad de salvación y combatir errores doctrinales',
         tema: 'Comunión y amor',
         bosquejo: [
@@ -355,11 +472,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Dios es vida (5)'
         ]
       },
-      { 
+      {
         libro: 'Segunda de Juan',
         autor: 'Juan',
         fecha: '85–95 d.C.',
-        destinatarios: 'La señora elegida y su familia',  
+        destinatarios: 'La señora elegida y su familia',
         proposito: 'Advertir contra falsos maestros',
         tema: 'Permanecer en la verdad',
         bosquejo: [
@@ -367,11 +484,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Advertencia contra engañadores (7–13)'
         ]
       },
-      { 
+      {
         libro: 'Tercera de Juan',
         autor: 'Juan',
         fecha: '85–95 d.C.',
-        destinatarios: 'Gayo',  
+        destinatarios: 'Gayo',
         proposito: 'Elogiar la hospitalidad y denunciar malas conductas',
         tema: 'Fidelidad y servicio cristiano',
         bosquejo: [
@@ -380,11 +497,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Despedida (13–15)'
         ]
       },
-      { 
+      {
         libro: 'Judas',
         autor: 'Judas, hermano de Jacobo',
         fecha: '65–80 d.C.',
-        destinatarios: 'Creyentes en general',  
+        destinatarios: 'Creyentes en general',
         proposito: 'Exhortar a contender por la fe',
         tema: 'Defensa de la fe verdadera',
         bosquejo: [
@@ -393,11 +510,11 @@ ${libro.bosquejo.map((punto: string) => `• ${punto}`).join('\n')}`;
           'Exhortaciones finales (17–25)'
         ]
       },
-      { 
+      {
         libro: 'Apocalipsis',
         autor: 'Juan',
         fecha: '95–96 d.C.',
-        destinatarios: 'Las siete iglesias de Asia',  
+        destinatarios: 'Las siete iglesias de Asia',
         proposito: 'Revelar el triunfo final de Cristo',
         tema: 'La victoria final de Jesucristo',
         bosquejo: [
